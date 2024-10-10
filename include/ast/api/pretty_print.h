@@ -266,7 +266,8 @@ void PrettyPrintVisitor::visit(ForeachExpr& node) {
 }
 
 void PrettyPrintVisitor::visit(BlockExpr& node) {
-  if (_indent_opening_brace) print_indent();
+  if (_indent_opening_brace)
+    print_indent();
   _out_stream << '{' << '\n';
 
   {

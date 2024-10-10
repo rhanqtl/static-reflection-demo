@@ -100,7 +100,8 @@ template <typename T>
 void DataEncoder<T, std::enable_if_t<reflect::is_ast_node_v<T>>>::operator()(
     std::ostream &out_stream, const T &object) {
   using Access = reflect::Access<T>;
-  if constexpr (Access::kHasSuper) save_as<typename Access::super_type>(out_stream, object);
+  if constexpr (Access::kHasSuper)
+    save_as<typename Access::super_type>(out_stream, object);
   save_fields(out_stream, object, std::make_index_sequence<Access::kNumFields>{});
 }
 

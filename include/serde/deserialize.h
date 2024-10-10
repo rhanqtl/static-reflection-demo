@@ -86,7 +86,8 @@ class ASTLoader {
     for (const auto &[cls_id, table] : addr_mapping) {
       for (auto [old_addr, new_addr] : table) {
         auto it = rfe_old_addr_to_rfr.find(old_addr);
-        if (it == rfe_old_addr_to_rfr.end()) continue;
+        if (it == rfe_old_addr_to_rfr.end())
+          continue;
         for (auto [user, slot] : it->second) {
           *slot = new_addr;
           add_user(cls_id, new_addr, user);

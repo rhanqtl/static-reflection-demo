@@ -53,7 +53,8 @@ struct DataDecoder<T, std::enable_if_t<reflect::is_ast_node_v<T>>> {
   void operator()(std::istream &in_stream, T &object) {
     using Access = reflect::Access<T>;
     SAVE_RESTORE(curr_ast_node, static_cast<void *>(&object));
-    if constexpr (Access::kHasSuper) load_as<typename Access::super_type>(in_stream, object);
+    if constexpr (Access::kHasSuper)
+      load_as<typename Access::super_type>(in_stream, object);
     // DEBUG("{} {} fields to load", __PRETTY_FUNCTION__, Access::kNumFields);
     load_fields(in_stream, object, std::make_index_sequence<Access::kNumFields>{});
     // DEBUG("[{}] {} fields loaded", T::kClassName, Access::kNumFields);

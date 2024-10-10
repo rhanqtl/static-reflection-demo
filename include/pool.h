@@ -53,7 +53,8 @@ class Pool final {
   }
 
   void reserve(std::size_t n) {
-    if (n > _data.size()) _data.resize(n);
+    if (n > _data.size())
+      _data.resize(n);
   }
 
   std::size_t num_nodes() const {

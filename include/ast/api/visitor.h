@@ -68,7 +68,8 @@ class Visitor {
 
   template <typename T>
   void traverse_node(T* x) {
-    if (!x) return;
+    if (!x)
+      return;
     x->accept(*this);
   }
 };

@@ -54,7 +54,8 @@ struct IntegralType : Type {
  private:
   static uint32_t combine_sign_width(bool s, uint32_t w) {
     assert(w <= std::numeric_limits<int32_t>::max());
-    if (s) return (1 << 31) | w;
+    if (s)
+      return (1 << 31) | w;
     return w;
   }
   static std::pair<bool, uint32_t> decompose_sign_width(uint32_t sw) {

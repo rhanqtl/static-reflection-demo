@@ -51,7 +51,8 @@ inline void do_logging(const char *file, int line, ::utility::logging::Level lev
     std::string msg = fmt::format("{}:{} :: {} :: ", file, line, level);
     fmt::format_to(std::back_inserter(msg), fmt, std::forward<Args>(args)...);
     std::cout << msg << '\n';
-    if (level == Level::kFatal) std::abort();
+    if (level == Level::kFatal)
+      std::abort();
   }
 }
 }  // namespace utility::logging::detail
