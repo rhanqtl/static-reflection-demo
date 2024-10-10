@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.28)
 
 project(static-reflection-demo LANGUAGES CXX)
 
+set(CMAKE_CXX_STANDARD 17)
+
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 find_program(CLANG_EXEC clang++)

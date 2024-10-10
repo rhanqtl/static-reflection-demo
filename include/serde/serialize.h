@@ -2,6 +2,7 @@
 #define SERDE_SERIALIZE__H
 
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -20,6 +21,8 @@
 #include "pool.h"
 #include "reflect/access.h"
 #include "serde/encoder.h"
+#include "serde/io.h"
+#include "utility/logging.h"
 
 namespace serde {
 class ASTSaver {
@@ -27,14 +30,16 @@ class ASTSaver {
   ASTSaver(const std::filesystem::path &dir) : _dir{dir} {}
 
   void save() {
-    save_pools(std::make_index_sequence<std::tuple_size_v<ast::Nodes>>());
+    INFO("Saving pools");
+    save_pools(std::make_index_sequence<std::tuple_size_v<ast::Nodes> - 1>());
 
-    auto index_stream = std::ofstream{_dir / "index.db"};
+    INFO("Saving address mapping");
+    auto index_stream = std::ofstream{_dir / "index.db", std::ios::binary};
     for (const auto &[cls_id, xs] : _addr) {
-      index_stream << cls_id;
-      index_stream << xs.size();
+      io::detail::write(index_stream, cls_id);
+      io::write_size(index_stream, xs.size());
       for (auto x : xs) {
-        index_stream << x;
+        io::write_u64(index_stream, x);
       }
     }
   }
@@ -51,7 +56,7 @@ class ASTSaver {
     DEBUG("Begin saving pool of {}, {} node(s)", T::kClassName, pool.num_nodes());
     auto p = _dir / T::kClassName;
     std::ofstream out_s{p, std::ios::binary};
-    out_s << pool.num_nodes();
+    io::write_size(out_s, pool.num_nodes());
     auto &addr = _addr[T::kClassID];
     addr.resize(pool.num_nodes());
     pool.for_each([&out_s, &addr](std::size_t i, const T &node) {

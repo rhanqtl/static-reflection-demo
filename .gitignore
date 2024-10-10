@@ -6,3 +6,6 @@ x
 
 build
 cmake-build-*
+*.o
+
+*.output

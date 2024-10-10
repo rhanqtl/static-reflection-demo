@@ -3,7 +3,9 @@
 
 #include <cassert>
 #include <cstdint>
+#include <iostream>
 #include <limits>
+#include <string>
 
 #include "ast/ast_fwd.h"
 #include "reflect/model.h"
@@ -13,13 +15,17 @@ struct Type {
   enum class Kind {
     kUnitType = 1001,
     kIntegralType,
+    kStringType,
     kClassType,
-    kArrayType,
+    kListType,
   };
 
   const Kind kind;
 
   Type(Kind kind) : kind{kind} {}
+
+  template <typename Visitor>
+  void accept(Visitor &v);
 
   META_INFO_NF(Type, 0, void);
 };
@@ -31,10 +37,10 @@ struct UnitType : Type {
 };
 
 struct IntegralType : Type {
- private:
-  const uint32_t _sign_width;
+  uint32_t _sign_width;
 
  public:
+  IntegralType() : IntegralType{false, 0} {}
   IntegralType(bool s, uint32_t w)
       : Type{Kind::kIntegralType}, _sign_width{combine_sign_width(s, w)} {}
 
@@ -62,21 +68,47 @@ struct IntegralType : Type {
 };
 
 struct ClassType : Type {
-  ClassDecl *const cls;
+  ClassDecl *cls;
+  std::string name;
 
+  ClassType() : ClassType{nullptr} {}
   ClassType(ClassDecl *cls) : Type{Kind::kClassType}, cls{cls} {}
+  ClassType(std::string_view name) : Type{Kind::kClassType}, name{name}, cls{nullptr} {}
 
   META_INFO(ClassType, Kind::kClassType, Type, REF_FIELD(cls));
 };
 
-struct ArrayType : Type {
-  Type *const element_type;
-  const std::size_t size;
+struct ListType : Type {
+  Type *element_type;
 
-  ArrayType(Type *et, std::size_t size) : Type{Kind::kArrayType}, element_type{et}, size{size} {}
+  ListType() : ListType{nullptr} {}
+  ListType(Type *et) : Type{Kind::kListType}, element_type{et} {}
 
-  META_INFO(ArrayType, Kind::kArrayType, Type, element_type, size);
+  META_INFO(ListType, Kind::kListType, Type, element_type);
 };
+
+struct StringType : Type {
+  StringType() : Type{Kind::kStringType} {}
+
+  META_INFO_NF(StringType, Kind::kStringType, Type);
+};
+}  // namespace ast
+
+namespace ast {
+template <typename Visitor>
+void Type::accept(Visitor &v) {
+  switch (kind) {
+#define TYPE(t)                             \
+  case Kind::k##t##Type:                    \
+    v.visit(*static_cast<t##Type *>(this)); \
+    break;
+#include "./ast_nodes.inc"
+#undef TYPE
+    default:
+      std::cerr << this << ' ' << (void *)kind << '\n';
+      assert(false);
+  }
+}
 }  // namespace ast
 
 #endif  // AST_TYPE__H

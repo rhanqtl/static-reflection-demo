@@ -3,6 +3,7 @@
 
 #include <cassert>
 #include <functional>
+#include <iterator>
 #include <list>
 #include <memory>
 #include <unordered_map>
@@ -27,10 +28,11 @@ class Pool final {
 
  public:
   template <typename... Args>
-  T create(Args &&...args) {
+  T *create(Args &&...args) {
     _data.emplace_front(std::forward<Args>(args)...);
     auto it = _data.begin();
     _index.emplace(std::addressof(*it), it);
+    return std::addressof(*it);
   }
 
   void destroy(T *ptr) {
@@ -42,7 +44,7 @@ class Pool final {
   }
 
   template <typename F>
-  void for_each(F &&func) const {
+  void for_each(F &&func) {
     std::size_t i = 0;
     for (auto &x : _data) {
       std::invoke(std::forward<F>(func), i, x);
@@ -56,6 +58,20 @@ class Pool final {
 
   std::size_t num_nodes() const {
     return _data.size();
+  }
+
+  const T &at(std::size_t i) const {
+    auto it = _data.begin();
+    std::advance(it, i);
+    return *it;
+  }
+  T &at(std::size_t i) {
+    return const_cast<T &>(static_cast<const Pool *>(this)->at(i));
+  }
+
+  void clear() {
+    _index.clear();
+    _data.clear();
   }
 
  private:

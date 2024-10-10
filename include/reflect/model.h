@@ -42,11 +42,13 @@ struct TransientField : Field<C, T, P> {
   static constexpr bool is_transient = true;
 };
 
-// template <typename C, typename T, T *P>
-// struct StaticField : Field<C, T, nullptr> {
-//   static constexpr bool is_static = true;
-//   static constexpr decltype(P) pointer = P;
-// };
+#if 0
+template <typename C, typename T, T *P>
+struct StaticField : Field<C, T, nullptr> {
+  static constexpr bool is_static = true;
+  static constexpr decltype(P) pointer = P;
+};
+#endif
 
 template <typename... Ts>
 struct FieldList {

@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "ast/ast_fwd.h"
+#include "ast/stmt.h"
 #include "reflect/model.h"
 
 namespace ast {
@@ -25,51 +26,88 @@ struct Decl {
   static bool update_users;
 
   const Kind kind;
-  const std::string name;
+  std::string name;
   std::unordered_set<void *> users;
 
   void add_user(void *u) {
     users.emplace(u);
   }
 
+  template <typename Visitor>
+  void accept(Visitor &v);
+
   META_INFO(Decl, 0, void, name, TRANSIENT_FIELD(users));
 };
 inline bool Decl::update_users = true;
 
 struct CompilationUnitDecl : Decl {
-  std::vector<std::unique_ptr<Decl>> decls;
+  std::vector<Decl *> decls;
 
-  using Decl::Decl;
+  CompilationUnitDecl() : CompilationUnitDecl{""} {}
+  CompilationUnitDecl(std::string_view name) : Decl{Kind::kCompilationUnitDecl, name} {}
 
-  META_INFO_NF(CompilationUnitDecl, Kind::kCompilationUnitDecl, Decl);
+  META_INFO(CompilationUnitDecl, Kind::kCompilationUnitDecl, Decl, decls);
 };
 
 struct VarDecl : Decl {
   Type *type;
+  Expr *init_val;
 
-  VarDecl(std::string_view name, Type *type) : Decl{Kind::kVarDecl, name}, type{type} {}
+  VarDecl() : VarDecl{"", nullptr} {}
+  VarDecl(std::string_view name, Type *type, Expr *init_val = nullptr)
+      : Decl{Kind::kVarDecl, name}, type{type}, init_val{init_val} {}
 
   META_INFO(VarDecl, Kind::kVarDecl, Decl, type);
 };
 
 struct FuncDecl : Decl {
-  const std::vector<Type *> param_types;
-  Type *const return_type;
+  struct ParamSpec {
+    std::string_view name;
+    Type *type;
+  };
 
-  FuncDecl(std::string_view name, Type *return_type, const std::vector<Type *> &param_types)
-      : Decl{Kind::kFuncDecl, name}, param_types{param_types}, return_type{return_type} {}
+  std::vector<std::tuple<std::string, Type *>> params;
+  Type *return_type;
+  BlockExpr *body;
 
-  META_INFO(FuncDecl, Kind::kFuncDecl, Decl, param_types, return_type);
+  FuncDecl() : FuncDecl{"", {}, nullptr, nullptr} {}
+  FuncDecl(std::string_view name, const std::vector<ParamSpec> &param_specs, Type *return_type,
+           BlockExpr *body)
+      : Decl{Kind::kFuncDecl, name}, return_type{return_type}, body{body} {
+    params.reserve(param_specs.size());
+    for (const auto &spec : param_specs) {
+      params.emplace_back(spec.name, spec.type);
+    }
+  }
+
+  // void add_stmt(Stmt *stmt);
+
+  META_INFO(FuncDecl, Kind::kFuncDecl, Decl, params, return_type, body);
 };
 
 struct ClassDecl : Decl {
   std::vector<VarDecl *> vars;
   std::vector<FuncDecl *> funcs;
 
+  ClassDecl() : ClassDecl{""} {}
   ClassDecl(std::string_view name) : Decl{Kind::kClassDecl, name} {}
 
   META_INFO(ClassDecl, Kind::kClassDecl, Decl, vars, funcs);
 };
+}  // namespace ast
+
+namespace ast {
+template <typename Visitor>
+void Decl::accept(Visitor &v) {
+  switch (kind) {
+#define DECL(t)                             \
+  case Kind::k##t##Decl:                    \
+    v.visit(*static_cast<t##Decl *>(this)); \
+    break;
+#include "./ast_nodes.inc"
+#undef DECL
+  }
+}
 }  // namespace ast
 
 #endif  // AST_DECL__H

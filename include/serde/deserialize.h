@@ -3,10 +3,13 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <functional>
 #include <initializer_list>
+#include <iostream>
 #include <iterator>
 #include <ostream>
 #include <tuple>
@@ -22,6 +25,8 @@
 #include "pool.h"
 #include "reflect/access.h"
 #include "serde/decoder.h"
+#include "serde/io.h"
+#include "utility/logging.h"
 
 inline std::unordered_map<std::uintptr_t, std::vector<std::pair<void *, void **>>>
     rfe_old_addr_to_rfr{};
@@ -38,34 +43,46 @@ class ASTLoader {
 
   void load() {
     // 1. Load AST nodes.
+    INFO("Loading pools");
     ast::Decl::update_users = false;
-    load_pools(std::make_index_sequence<std::tuple_size_v<ast::Nodes>>());
+    load_pools(std::make_index_sequence<std::tuple_size_v<ast::Nodes> - 1>());
 
     // 2. Load old addr info.
-    auto index_stream = std::ifstream{_dir / "index.db"};
-    while (index_stream) {
-      int cls_id;
-      index_stream >> cls_id;
+    INFO("Loading address mapping");
+    auto index_stream = std::ifstream{_dir / "index.db", std::ios::binary};
+    index_stream.seekg(0, std::ios::end);
+    const auto file_end = index_stream.tellg();
+    index_stream.seekg(0, std::ios::beg);
+    while (index_stream.tellg() != file_end) {
+      const int cls_id = io::detail::read<int32_t>(index_stream);
+      DEBUG("offset={}", (std::size_t)index_stream.tellg());
+      const std::size_t n_entries = io::read_size(index_stream);
+      DEBUG("{} has {} nodes", cls_id, n_entries);
       auto &table = addr_mapping[cls_id];
-      std::size_t n_entries;
-      index_stream >> n_entries;
-      while (index_stream) {
-        int cls_id;
-        index_stream >> cls_id;
-        auto &table = addr_mapping[cls_id];
-        std::size_t n_entries;
-        index_stream >> n_entries;
-        if (table.empty())
-          table.resize(n_entries);
-        else
-          assert(table.size() == n_entries);
-        for (std::size_t i = 0; i < n_entries; i++) {
-          index_stream >> table[i].old_addr;
-        }
+      table.resize(n_entries);
+      for (std::size_t i = 0; i < n_entries; i++) {
+        table[i].old_addr = io::read_u64(index_stream);
       }
     }
 
+#if 0
+    for (const auto &[class_id, table] : addr_mapping) {
+      DEBUG("Class ID: {}", class_id);
+      for (const auto &entry : table) {
+        DEBUG("  old_addr={}", (void *)entry.old_addr);
+      }
+    }
+#endif
+#if 0
+    for (const auto &[old_addr, ps] : rfe_old_addr_to_rfr) {
+      std::cerr << "old_addr=" << (void *)old_addr << '\n';
+      for (const auto &[user, slot] : ps) {
+        std::cerr << "  user=" << user << ' ' << "slot=" << slot << '\n';
+      }
+    }
+#endif
     // 3. Patch and update users.
+    INFO("Start back-patching");
     for (const auto &[cls_id, table] : addr_mapping) {
       for (auto [old_addr, new_addr] : table) {
         auto it = rfe_old_addr_to_rfr.find(old_addr);
@@ -87,18 +104,23 @@ class ASTLoader {
   template <typename T>
   void load_pool() {
     auto &pool = ast::Pool<T>::instance();
+    pool.clear();
     auto p = _dir / T::kClassName;
     assert(std::filesystem::exists(p));
     std::ifstream in_s{p, std::ios::binary};
-    std::size_t n_nodes;
-    in_s >> n_nodes;
+    const std::size_t n_nodes = io::read_size(in_s);
+    DEBUG("Begin loading pool of {}, {} node(s)", T::kClassName, n_nodes);
     pool.reserve(n_nodes);
+    // DEBUG("Pool of {} prepared", T::kClassName);
     auto &table = addr_mapping[T::kClassID];
     table.resize(n_nodes);
+    // DEBUG("Address mapping of {} prepared", T::kClassName);
     pool.for_each([&in_s, &table](std::size_t i, T &object) {
+      DEBUG("Loading #{}, addr is {}", i, static_cast<void *>(&object));
       table[i].new_addr = &object;
       load_node(in_s, object);
     });
+    DEBUG("End loading pool of {}", T::kClassName);
   }
 
   template <typename T>
@@ -114,8 +136,9 @@ class ASTLoader {
         [[fallthrough]];
       case ast::FuncDecl::kClassID:
         reinterpret_cast<ast::Decl *>(new_addr)->add_user(user);
+        break;
       default:
-        assert(false);
+        break;
     }
   }
 
